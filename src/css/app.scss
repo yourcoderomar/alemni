@@ -1,1 +1,12 @@
 // app global css in SCSS form
+@import './quasar.variables.scss';
+
+body {
+  background-color: $app-bg;
+  font-family: $font-body;
+}
+
+h1, h2, h3, h4, h5, h6,
+.text-h1, .text-h2, .text-h3, .text-h4, .text-h5, .text-h6 {
+  font-family: $font-title;
+}

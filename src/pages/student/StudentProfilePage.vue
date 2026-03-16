@@ -128,6 +128,23 @@
           <q-icon name="chevron_right" size="22px" />
         </button>
       </div>
+
+      <p v-if="logoutError" class="profile-error" role="alert">
+        {{ logoutError }}
+      </p>
+
+      <button
+        class="logout-btn"
+        type="button"
+        :disabled="isLoggingOut"
+        @click="onLogout"
+      >
+        <span v-if="!isLoggingOut">Log out</span>
+        <span v-else class="logout-loading">
+          <q-icon name="progress_activity" size="18px" />
+          Logging out…
+        </span>
+      </button>
     </section>
   </div>
 </template>
@@ -136,6 +153,7 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import NotificationButton from 'src/components/NotificationButton.vue'
+import { supabase } from 'src/services/supabaseClient'
 
 const router = useRouter()
 
@@ -148,6 +166,9 @@ const form = ref({
 })
 
 const avatarImageSrc = '/img/student-profile-avatar.png'
+
+const isLoggingOut = ref(false)
+const logoutError = ref('')
 
 const initials = computed(() =>
   form.value.name
@@ -163,6 +184,26 @@ function goToInviteFriends () {
 
 function goToManageProfile () {
   router.push({ name: 'student-manage-profile' })
+}
+
+async function onLogout () {
+  if (isLoggingOut.value) {
+    return
+  }
+
+  isLoggingOut.value = true
+  logoutError.value = ''
+  try {
+    const { error } = await supabase.auth.signOut()
+    if (error) {
+      logoutError.value = error.message
+      return
+    }
+
+    router.replace({ name: 'login' })
+  } finally {
+    isLoggingOut.value = false
+  }
 }
 </script>
 
@@ -331,6 +372,42 @@ function goToManageProfile () {
 .settings-item-label {
   font-family: $font-body;
   font-size: 3.8vw;
+}
+
+.profile-error {
+  margin: 4vw 0 0;
+  font-family: $font-body;
+  font-size: 3.6vw;
+  color: $negative;
+  text-align: center;
+}
+
+.logout-btn {
+  width: 100%;
+  margin-top: 5vw;
+  border: 0.35vw solid rgba(33, 26, 30, 0.18);
+  border-radius: 999vw;
+  padding: 3.8vw 4vw;
+  min-height: 13vw;
+  background-color: rgba(33, 26, 30, 0.03);
+  color: rgba(33, 26, 30, 0.9);
+  font-family: $font-body;
+  font-size: 4vw;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logout-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.logout-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 2vw;
 }
 </style>
 

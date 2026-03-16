@@ -25,6 +25,22 @@
       <div class="manage-fields">
         <div class="manage-row">
           <span class="manage-label">
+            Year
+          </span>
+          <span class="manage-value">
+            {{ form.year }}
+          </span>
+        </div>
+        <div class="manage-row">
+          <span class="manage-label">
+            School type
+          </span>
+          <span class="manage-value">
+            {{ form.schoolType }}
+          </span>
+        </div>
+        <div class="manage-row">
+          <span class="manage-label">
             Phone
           </span>
           <span class="manage-value">
@@ -33,46 +49,58 @@
         </div>
         <div class="manage-row">
           <span class="manage-label">
-            Grade &amp; section
+            Parent number
           </span>
           <span class="manage-value">
-            {{ form.grade }} · {{ form.section }}
+            {{ form.parentNumber }}
           </span>
         </div>
       </div>
 
-      <div class="manage-actions">
-        <button
-          type="button"
-          class="manage-button manage-button--primary"
-        >
-          Edit basic info
-        </button>
-        <button
-          type="button"
-          class="manage-button manage-button--secondary"
-        >
-          Change password
-        </button>
-      </div>
+    </section>
+
+    <section class="manage-primary-actions">
+      <button
+        type="button"
+        class="manage-button manage-button--primary"
+      >
+        Edit profile information
+      </button>
     </section>
 
     <section class="manage-list-section">
       <h2 class="manage-list-title">
-        Account settings
+        Account &amp; security
       </h2>
       <div class="manage-list">
         <button
           v-for="item in items"
           :key="item.id"
           type="button"
-          class="manage-list-item"
+          :class="[
+            'manage-list-item',
+            item.id === 3 && 'manage-list-item--danger',
+          ]"
         >
           <div class="manage-list-main">
-            <div class="manage-list-icon">
-              <q-icon :name="item.icon" size="22px" />
+            <div
+              :class="[
+                'manage-list-icon',
+                item.id === 3 && 'manage-list-icon--danger',
+              ]"
+            >
+              <q-icon
+                :name="item.icon"
+                size="22px"
+                :color="item.id === 3 ? 'negative' : undefined"
+              />
             </div>
-            <span class="manage-list-label">
+            <span
+              :class="[
+                'manage-list-label',
+                item.id === 3 && 'manage-list-label--danger',
+              ]"
+            >
               {{ item.label }}
             </span>
           </div>
@@ -91,13 +119,14 @@ const form = ref({
   name: 'Student Name',
   email: 'student@example.com',
   phone: '+971 50 000 0000',
-  grade: '10',
-  section: 'A',
+  year: '2024 / 2025',
+  schoolType: 'Private',
+  parentNumber: '+971 55 000 0000',
 })
 
 const items = ref([
-  { id: 1, label: 'Language & region', icon: 'language' },
-  { id: 2, label: 'Login & security', icon: 'lock_open' },
+  { id: 1, label: 'Login & security', icon: 'lock_open' },
+  { id: 2, label: 'Language & region', icon: 'language' },
   { id: 3, label: 'Delete my account', icon: 'delete_outline' },
 ])
 
@@ -210,6 +239,10 @@ const initials = computed(() =>
   margin-top: 4vw;
 }
 
+.manage-primary-actions {
+  margin-top: 5vw;
+}
+
 .manage-button {
   width: 100%;
   min-height: 12vw;
@@ -279,6 +312,19 @@ const initials = computed(() =>
 .manage-list-label {
   font-family: $font-body;
   font-size: 3.6vw;
+}
+
+.manage-list-item--danger {
+  border: 0.4vw solid rgba(244, 67, 54, 0.36);
+  background-color: rgba(244, 67, 54, 0.04);
+}
+
+.manage-list-icon--danger {
+  background-color: rgba(244, 67, 54, 0.12);
+}
+
+.manage-list-label--danger {
+  color: #f44336;
 }
 </style>
 

@@ -1,5 +1,29 @@
 const routes = [
   {
+    path: '/login',
+    component: () => import('layouts/AuthLayout.vue'),
+    children: [
+      {
+        path: '',
+        name: 'login',
+        meta: { title: 'Login', hideHeader: true },
+        component: () => import('pages/LoginPage.vue')
+      }
+    ]
+  },
+  {
+    path: '/signup',
+    component: () => import('layouts/AuthLayout.vue'),
+    children: [
+      {
+        path: '',
+        name: 'signup',
+        meta: { title: 'Sign up', hideHeader: true },
+        component: () => import('pages/SignupPage.vue')
+      }
+    ]
+  },
+  {
     path: '/student',
     component: () => import('layouts/MainLayout.vue'),
     meta: { role: 'student' },

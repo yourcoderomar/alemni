@@ -8,7 +8,25 @@
       <div class="teacher-hero-image" />
     </div>
 
-    <section class="info-card info-card--first">
+    <section v-if="isLoading" class="info-card info-card--first state-card" role="status" aria-live="polite">
+      <q-spinner size="28px" color="primary" />
+      <p class="state-text">Loading teacher…</p>
+    </section>
+
+    <section v-else-if="errorMessage" class="info-card info-card--first state-card" role="alert">
+      <q-icon name="error_outline" size="26px" />
+      <p class="state-text">{{ errorMessage }}</p>
+      <button class="primary-button" type="button" @click="loadTeacher">
+        Retry
+      </button>
+    </section>
+
+    <section v-else-if="!teacher" class="info-card info-card--first state-card">
+      <q-icon name="person_off" size="26px" />
+      <p class="state-text">Teacher not found.</p>
+    </section>
+
+    <section v-else class="info-card info-card--first">
       <div class="teacher-header">
         <div class="teacher-header-main">
           <div class="teacher-hero-avatar">
@@ -19,10 +37,10 @@
               {{ teacher.name }}
             </h1>
             <p class="teacher-meta">
-              {{ teacher.subject }} • {{ teacher.school }}
+              {{ teacher.subject || 'Teacher' }}<span v-if="teacher.school"> • {{ teacher.school }}</span>
             </p>
             <p class="teacher-meta">
-              {{ teacher.level }}
+              {{ teacher.level || 'All levels' }}
             </p>
           </div>
         </div>
@@ -33,7 +51,7 @@
               Students
             </span>
             <span class="stat-value">
-              {{ teacher.students }}
+              {{ teacher.studentsCount }}
             </span>
           </div>
           <div class="stat-pill">
@@ -51,13 +69,13 @@
         About
       </h2>
       <p class="about-text">
-        {{ teacher.about }}
+        {{ teacher.about || 'No bio yet.' }}
       </p>
     </section>
 
     <section class="info-card">
       <h2 class="section-title">
-        Classes with {{ teacher.name }}
+        Classes with {{ teacher?.name || 'this teacher' }}
       </h2>
 
       <div
@@ -72,14 +90,14 @@
         >
           <div class="class-row-main">
             <span class="class-row-title">
-              {{ cls.name }}
+              {{ cls.title }}
             </span>
             <span class="class-row-meta">
-              {{ cls.days }} • {{ cls.time }}
+              {{ cls.subject || 'Class' }}
             </span>
           </div>
           <span class="class-row-chip">
-            {{ cls.level }}
+            {{ cls.level || 'All levels' }}
           </span>
         </button>
       </div>
@@ -100,14 +118,14 @@
       <div class="rating-row">
         <div class="rating-main">
           <span class="rating-value">
-            {{ teacher.rating.toFixed(1) }}
+            {{ (teacher?.rating ?? 0).toFixed(1) }}
           </span>
           <span class="rating-stars">
             ★★★★★
           </span>
         </div>
         <p class="rating-meta">
-          Based on {{ teacher.reviewsCount }} student reviews
+          Based on {{ teacher?.reviewsCount ?? 0 }} student reviews
         </p>
       </div>
 
@@ -126,108 +144,75 @@
 
     <section class="info-card">
       <h2 class="section-title">
-        Contact {{ teacher.name }}
+        Contact {{ teacher?.name || 'teacher' }}
       </h2>
       <p class="about-text">
-        You can reach {{ teacher.name }} through {{ teacher.contactMethod }}.
+        You can reach {{ teacher?.name || 'this teacher' }} through {{ teacher?.contactMethod || 'in-app messages' }}.
       </p>
       <p class="about-text contact-meta">
-        {{ teacher.responseTime }}
+        {{ teacher?.responseTime || '' }}
       </p>
 
       <button
         type="button"
         class="primary-button"
         aria-label="Message teacher"
+        :disabled="!teacher"
       >
-        Message {{ teacher.name }}
+        Message {{ teacher?.name || 'teacher' }}
       </button>
     </section>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import BackButton from 'src/components/BackButton.vue'
 import NotificationButton from 'src/components/NotificationButton.vue'
+import { fetchTeacherBySlugOrProfileId } from 'src/services/teachers'
+import { fetchClassesForTeacher } from 'src/services/classes'
 
 const route = useRoute()
 
-const allTeachers = [
-  {
-    id: 1,
-    name: 'Mr. Ali',
-    subject: 'Math',
-    school: 'Alemni School',
-    students: '120+',
-    level: 'Grade 9–10',
-    about:
-      'Mr. Ali has over 10 years of experience teaching math and loves turning hard topics into simple steps.',
-    rating: 4.8,
-    reviewsCount: 132,
-    responseTime: 'Usually replies within 24 hours',
-    contactMethod: 'In-app messages',
-  },
-  {
-    id: 2,
-    name: 'Ms. Sara',
-    subject: 'Science',
-    school: 'Alemni School',
-    students: '95+',
-    level: 'Grade 8–9',
-    about:
-      'Ms. Sara brings science to life with experiments, projects, and real-world examples in every class.',
-    rating: 4.9,
-    reviewsCount: 98,
-    responseTime: 'Usually replies within a day',
-    contactMethod: 'In-app messages',
-  },
-]
+const teacher = ref(null)
+const isLoading = ref(true)
+const errorMessage = ref('')
+const classes = ref([])
 
-const allClasses = [
-  {
-    id: 1,
-    teacherId: 1,
-    name: 'Algebra basics',
-    days: 'Sun, Tue, Thu',
-    time: '09:00 – 10:00',
-    level: 'Grade 9',
-  },
-  {
-    id: 2,
-    teacherId: 1,
-    name: 'Advanced algebra',
-    days: 'Mon, Wed',
-    time: '13:00 – 14:00',
-    level: 'Grade 10',
-  },
-  {
-    id: 3,
-    teacherId: 2,
-    name: 'Physics foundations',
-    days: 'Mon, Wed',
-    time: '11:30 – 12:30',
-    level: 'Grade 8–9',
-  },
-]
+const teacherSlug = computed(() => String(route.params.slug || '').trim())
 
-const teacherId = computed(() => {
-  const id = Number(route.params.id)
-  return Number.isFinite(id) ? id : null
-})
-
-const teacher = computed(() => {
-  if (teacherId.value == null) {
-    return allTeachers[0]
+async function loadTeacher () {
+  if (!teacherSlug.value) {
+    teacher.value = null
+    isLoading.value = false
+    errorMessage.value = 'Missing teacher id.'
+    return
   }
 
-  return allTeachers.find(t => t.id === teacherId.value) || allTeachers[0]
+  isLoading.value = true
+  errorMessage.value = ''
+  try {
+    teacher.value = await fetchTeacherBySlugOrProfileId(teacherSlug.value)
+    classes.value = teacher.value?.profileId
+      ? await fetchClassesForTeacher(teacher.value.profileId)
+      : []
+  } catch (err) {
+    errorMessage.value = err?.message || 'Could not load teacher.'
+    teacher.value = null
+    classes.value = []
+  } finally {
+    isLoading.value = false
+  }
+}
+
+onMounted(() => {
+  loadTeacher()
 })
 
-const classes = computed(() =>
-  allClasses.filter(cls => cls.teacherId === teacher.value.id)
-)
+watch(teacherSlug, () => {
+  loadTeacher()
+})
 
 const teacherInitials = computed(() => {
   if (!teacher.value?.name) {
@@ -327,6 +312,7 @@ const teacherInitials = computed(() => {
   margin: 0;
   font-family: $font-title;
   font-size: 5.4vw;
+  line-height: 1.1;
   letter-spacing: 0.06em;
   color: rgba(33, 26, 30, 0.96);
 }
@@ -373,11 +359,26 @@ const teacherInitials = computed(() => {
   box-shadow: 0 1.6vw 4.2vw rgba(0, 0, 0, 0.06);
 }
 
+.state-card {
+  min-height: 28vw;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3vw;
+  text-align: center;
+}
+
+.state-text {
+  margin: 0;
+  font-family: $font-body;
+  font-size: 3.6vw;
+  color: rgba(33, 26, 30, 0.75);
+}
+
 .info-card--first {
   margin-top: -6vw;
-  position: absolute;
-  left: 4vw;
-  right: 4vw;
+  position: relative;
   z-index: 11;
 }
 

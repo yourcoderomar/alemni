@@ -1,17 +1,35 @@
 <template>
   <div class="student-page">
     <main class="teachers-main">
-      <div class="teachers-list">
+      <div v-if="isLoading" class="state-shell" role="status" aria-live="polite">
+        <q-spinner size="28px" color="primary" />
+        <p class="state-text">Loading teachers…</p>
+      </div>
+
+      <div v-else-if="errorMessage" class="state-shell" role="alert">
+        <q-icon name="error_outline" size="26px" />
+        <p class="state-text">{{ errorMessage }}</p>
+        <button class="retry-btn" type="button" @click="loadTeachers">
+          Retry
+        </button>
+      </div>
+
+      <div v-else-if="!teachers.length" class="state-shell">
+        <q-icon name="school" size="26px" />
+        <p class="state-text">No teachers yet.</p>
+      </div>
+
+      <div v-else class="teachers-list">
         <button
           v-for="teacher in teachers"
-          :key="teacher.id"
+          :key="teacher.profileId"
           class="teacher-card"
           type="button"
           @click="goToTeacher(teacher)"
         >
           <div class="teacher-header">
             <div class="teacher-avatar">
-              {{ teacher.name[0] }}
+              {{ teacher.name?.[0] ?? '?' }}
             </div>
 
             <div class="teacher-info">
@@ -19,18 +37,10 @@
                 {{ teacher.name }}
               </div>
               <div class="teacher-meta">
-                {{ teacher.subject }} • {{ teacher.school }}
+                {{ teacher.subject || 'Teacher' }}<span v-if="teacher.school"> • {{ teacher.school }}</span>
               </div>
             </div>
 
-            <div
-              class="teacher-subscribe"
-              :class="{ 'teacher-subscribe--active': teacher.subscribed }"
-            >
-              <span class="teacher-subscribe-label">
-                {{ teacher.subscribed ? 'Subscribed' : 'Subscribe' }}
-              </span>
-            </div>
           </div>
 
           <div class="teacher-footer">
@@ -39,7 +49,7 @@
                 name="groups"
                 size="16px"
               />
-              <span>{{ teacher.students }} students</span>
+              <span>{{ teacher.studentsCount }} students</span>
             </div>
 
             <div class="teacher-pill">
@@ -47,7 +57,7 @@
                 name="school"
                 size="16px"
               />
-              <span>{{ teacher.level }}</span>
+              <span>{{ teacher.level || 'All levels' }}</span>
             </div>
           </div>
         </button>
@@ -57,41 +67,42 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { fetchTeachers } from 'src/services/teachers'
 
 const router = useRouter()
 
-const teachers = ref([
-  {
-    id: 1,
-    name: 'Mr. Ali',
-    subject: 'Math',
-    school: 'Alemni School',
-    students: '120+',
-    level: 'Grade 9–10',
-    subscribed: true
-  },
-  {
-    id: 2,
-    name: 'Ms. Sara',
-    subject: 'Science',
-    school: 'Alemni School',
-    students: '95+',
-    level: 'Grade 8–9',
-    subscribed: false
+const teachers = ref([])
+const isLoading = ref(true)
+const errorMessage = ref('')
+
+async function loadTeachers () {
+  isLoading.value = true
+  errorMessage.value = ''
+  try {
+    teachers.value = await fetchTeachers()
+  } catch (err) {
+    errorMessage.value = err?.message || 'Could not load teachers.'
+  } finally {
+    isLoading.value = false
   }
-])
+}
+
+onMounted(() => {
+  loadTeachers()
+})
 
 function goToTeacher (teacher) {
-  if (!teacher?.id) {
+  const slug = teacher?.slug || teacher?.profileId
+  if (!slug) {
     return
   }
 
   router.push({
     name: 'student-teacher-details',
     params: {
-      id: teacher.id
+      slug
     }
   })
 }
@@ -139,6 +150,35 @@ function goToTeacher (teacher) {
   display: flex;
   flex-direction: column;
   gap: 3.6vw;
+}
+
+.state-shell {
+  min-height: 40vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3vw;
+  padding: 8vw 4vw;
+  text-align: center;
+  color: rgba(33, 26, 30, 0.75);
+}
+
+.state-text {
+  margin: 0;
+  font-family: $font-body;
+  font-size: 3.6vw;
+}
+
+.retry-btn {
+  border: none;
+  border-radius: 999vw;
+  padding: 2.8vw 5vw;
+  min-height: 12vw;
+  background-color: $dark;
+  color: $app-bg;
+  font-family: $font-body;
+  font-size: 3.6vw;
 }
 
 .teacher-card {

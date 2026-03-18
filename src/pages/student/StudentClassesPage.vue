@@ -1,7 +1,25 @@
 <template>
   <div class="student-page">
     <main class="classes-main">
-      <div class="classes-list">
+      <div v-if="isLoading" class="state-shell" role="status" aria-live="polite">
+        <q-spinner size="28px" color="primary" />
+        <p class="state-text">Loading your classes…</p>
+      </div>
+
+      <div v-else-if="errorMessage" class="state-shell" role="alert">
+        <q-icon name="error_outline" size="26px" />
+        <p class="state-text">{{ errorMessage }}</p>
+        <button class="retry-btn" type="button" @click="loadClasses">
+          Retry
+        </button>
+      </div>
+
+      <div v-else-if="!classes.length" class="state-shell">
+        <q-icon name="school" size="26px" />
+        <p class="state-text">You’re not enrolled in any classes yet.</p>
+      </div>
+
+      <div v-else class="classes-list">
         <button
           v-for="cls in classes"
           :key="cls.id"
@@ -11,14 +29,14 @@
         >
           <div class="class-header">
             <div class="class-avatar">
-              {{ cls.name[0] }}
+              {{ cls.title?.[0] ?? 'C' }}
             </div>
             <div class="class-info">
               <div class="class-name">
-                {{ cls.name }}
+                {{ cls.title }}
               </div>
               <div class="class-meta">
-                {{ cls.teacher }} • {{ cls.days }}
+                {{ cls.subject || 'Class' }}<span v-if="cls.level"> • {{ cls.level }}</span>
               </div>
             </div>
             <div class="class-status">
@@ -27,23 +45,7 @@
                 name="check_circle"
                 size="xs"
               />
-              <span>{{ cls.status }}</span>
-            </div>
-          </div>
-          <div class="class-time-row">
-            <div class="class-time-pill">
-              <q-icon
-                name="schedule"
-                size="16px"
-              />
-              <span>{{ cls.time }}</span>
-            </div>
-            <div class="class-room-pill">
-              <q-icon
-                name="meeting_room"
-                size="16px"
-              />
-              <span>Room {{ cls.room }}</span>
+              <span>Enrolled</span>
             </div>
           </div>
         </button>
@@ -53,31 +55,31 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { fetchEnrolledClassesForCurrentUser } from 'src/services/classes'
 
 const router = useRouter()
 
-const classes = ref([
-  {
-    id: 1,
-    name: 'Math',
-    teacher: 'Mr. Ali',
-    days: 'Sun, Tue, Thu',
-    time: '09:00 – 10:00',
-    room: 'A1',
-    status: 'Active'
-  },
-  {
-    id: 2,
-    name: 'Science',
-    teacher: 'Ms. Sara',
-    days: 'Mon, Wed',
-    time: '11:30 – 12:30',
-    room: 'B3',
-    status: 'Active'
+const classes = ref([])
+const isLoading = ref(true)
+const errorMessage = ref('')
+
+async function loadClasses () {
+  isLoading.value = true
+  errorMessage.value = ''
+  try {
+    classes.value = await fetchEnrolledClassesForCurrentUser()
+  } catch (err) {
+    errorMessage.value = err?.message || 'Could not load your classes.'
+  } finally {
+    isLoading.value = false
   }
-])
+}
+
+onMounted(() => {
+  loadClasses()
+})
 
 function goToClassDetails (cls) {
   if (!cls || !cls.id) {
@@ -133,6 +135,35 @@ function goToClassDetails (cls) {
   display: flex;
   flex-direction: column;
   gap: 3.6vw;
+}
+
+.state-shell {
+  min-height: 40vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3vw;
+  padding: 8vw 4vw;
+  text-align: center;
+  color: rgba(33, 26, 30, 0.75);
+}
+
+.state-text {
+  margin: 0;
+  font-family: $font-body;
+  font-size: 3.6vw;
+}
+
+.retry-btn {
+  border: none;
+  border-radius: 999vw;
+  padding: 2.8vw 5vw;
+  min-height: 12vw;
+  background-color: $dark;
+  color: $app-bg;
+  font-family: $font-body;
+  font-size: 3.6vw;
 }
 
 .class-card {

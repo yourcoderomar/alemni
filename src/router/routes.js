@@ -65,7 +65,7 @@ const routes = [
         component: () => import('pages/student/StudentTeachersPage.vue')
       },
       {
-        path: 'teachers/:id',
+        path: 'teachers/:slug',
         name: 'student-teacher-details',
         meta: { title: 'Teacher details', hideHeader: true, bottomNavGroup: 'teachers' },
         component: () => import('pages/student/StudentTeacherDetailsPage.vue')

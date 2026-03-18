@@ -11,10 +11,10 @@
     <section class="class-details-card">
       <header class="class-details-header">
         <h1 class="class-details-title">
-          {{ classInfo?.name || 'Class' }}
+          {{ classInfo?.title || 'Class' }}
         </h1>
         <p class="class-details-meta">
-          {{ classInfo?.teacher }} • {{ classInfo?.days }}
+          {{ classInfo?.subject || 'Class' }}<span v-if="classInfo?.level"> • {{ classInfo.level }}</span>
         </p>
       </header>
 
@@ -24,7 +24,7 @@
             Time
           </span>
           <span class="class-details-value">
-            {{ classInfo?.time }}
+            {{ classTime }}
           </span>
         </div>
 
@@ -33,7 +33,7 @@
             Room
           </span>
           <span class="class-details-value">
-            {{ classInfo?.room }}
+            {{ classLocation }}
           </span>
         </div>
 
@@ -42,12 +42,12 @@
             Status
           </span>
           <span class="class-details-chip">
-            {{ classInfo?.status }}
+            Active
           </span>
         </div>
       </div>
 
-      <!-- Announcements -->
+      <!-- Announcements (still mock for now) -->
       <section class="class-extra-card">
         <h2 class="class-extra-title">
           Announcements
@@ -63,7 +63,7 @@
                 {{ item.title }}
               </span>
               <span class="class-announcement-date">
-                {{ item.date }}
+                {{ new Date(item.createdAt).toLocaleDateString() }}
               </span>
             </div>
             <p class="class-announcement-body">
@@ -82,7 +82,7 @@
             class="class-sessions-title"
             :class="{ 'class-sessions-title--compact': showAllSessions }"
           >
-            {{ showAllSessions ? 'All sessions this semester' : 'Sessions this week' }}
+            {{ showAllSessions ? 'All sessions' : 'Upcoming sessions' }}
           </h2>
 
           <button
@@ -90,11 +90,11 @@
             class="class-sessions-toggle"
             @click="showAllSessions = !showAllSessions"
           >
-            {{ showAllSessions ? 'Show this week' : 'Show all' }}
+            {{ showAllSessions ? 'Show upcoming' : 'Show all' }}
           </button>
         </div>
 
-        <ul class="class-sessions-list">
+        <ul v-if="visibleSessions.length" class="class-sessions-list">
           <li
             v-for="session in visibleSessions"
             :key="session.id"
@@ -118,8 +118,6 @@
             <span
               class="class-session-status"
               :class="{
-                'is-present': session.status === 'Present',
-                'is-absent': session.status === 'Absent',
                 'is-upcoming': session.status === 'Upcoming'
               }"
             >
@@ -127,6 +125,9 @@
             </span>
           </li>
         </ul>
+        <p v-else class="class-extra-empty">
+          No sessions scheduled yet.
+        </p>
       </section>
 
       <!-- Q&A -->
@@ -142,10 +143,10 @@
           >
             <div class="class-qa-header">
               <span class="class-qa-author">
-                {{ q.author }}
+                {{ q.authorName }}
               </span>
               <span class="class-qa-time">
-                {{ q.time }}
+                {{ new Date(q.createdAt).toLocaleDateString() }}
               </span>
             </div>
             <p class="class-qa-question">
@@ -168,132 +169,104 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import BackButton from 'src/components/BackButton.vue';
 import NotificationButton from 'src/components/NotificationButton.vue';
+import {
+  fetchClassById,
+  fetchSessionsForClass,
+  fetchAnnouncementsForClass,
+  fetchQuestionsForClass
+} from 'src/services/classes';
 
 const route = useRoute();
 const router = useRouter();
 
-const allClasses = [
-  {
-    id: 1,
-    name: 'Math',
-    teacher: 'Mr. Ali',
-    days: 'Sun, Tue, Thu',
-    time: '09:00 – 10:00',
-    room: 'A1',
-    status: 'Active',
-  },
-  {
-    id: 2,
-    name: 'Science',
-    teacher: 'Ms. Sara',
-    days: 'Mon, Wed',
-    time: '11:30 – 12:30',
-    room: 'B3',
-    status: 'Active',
-  },
-];
-
-const classInfo = computed(() => {
-  const idParam = route.params.id;
-  const id = Number(idParam);
-  if (!Number.isFinite(id)) {
-    return allClasses[0];
-  }
-  return allClasses.find((cls) => cls.id === id) || allClasses[0];
-});
-
-const weeklySessions = computed(() => {
-  if (!classInfo.value) {
-    return [];
-  }
-
-  if (classInfo.value.id === 1) {
-    return [
-      { id: 1, day: 'Sun', time: '09:00 – 10:00', status: 'Present', topic: 'Algebra basics' },
-      { id: 2, day: 'Tue', time: '09:00 – 10:00', status: 'Present', topic: 'Linear equations' },
-      { id: 3, day: 'Thu', time: '09:00 – 10:00', status: 'Upcoming', topic: 'Quadratic functions' },
-    ];
-  }
-
-  if (classInfo.value.id === 2) {
-    return [
-      { id: 4, day: 'Mon', time: '11:30 – 12:30', status: 'Present', topic: 'Forces & motion' },
-      { id: 5, day: 'Wed', time: '11:30 – 12:30', status: 'Absent', topic: 'Newton’s laws' },
-    ];
-  }
-
-  return [];
-});
-
-const semesterSessions = computed(() => {
-  if (!classInfo.value) {
-    return [];
-  }
-
-  if (classInfo.value.id === 1) {
-    return [
-      { id: 1, day: 'Week 1 · Sun', time: '09:00 – 10:00', status: 'Present', topic: 'Algebra basics' },
-      { id: 2, day: 'Week 1 · Tue', time: '09:00 – 10:00', status: 'Present', topic: 'Linear equations' },
-      { id: 3, day: 'Week 1 · Thu', time: '09:00 – 10:00', status: 'Absent', topic: 'Homework review' },
-      { id: 4, day: 'Week 2 · Sun', time: '09:00 – 10:00', status: 'Present', topic: 'Graphs' },
-      { id: 5, day: 'Week 2 · Tue', time: '09:00 – 10:00', status: 'Present', topic: 'Practice session' },
-      { id: 6, day: 'Week 2 · Thu', time: '09:00 – 10:00', status: 'Upcoming', topic: 'Mid‑unit review' },
-    ];
-  }
-
-  if (classInfo.value.id === 2) {
-    return [
-      { id: 7, day: 'Week 1 · Mon', time: '11:30 – 12:30', status: 'Present', topic: 'Forces & motion' },
-      { id: 8, day: 'Week 1 · Wed', time: '11:30 – 12:30', status: 'Absent', topic: 'Newton’s laws' },
-      { id: 9, day: 'Week 2 · Mon', time: '11:30 – 12:30', status: 'Present', topic: 'Energy forms' },
-      { id: 10, day: 'Week 2 · Wed', time: '11:30 – 12:30', status: 'Upcoming', topic: 'Lab prep' },
-    ];
-  }
-
-  return weeklySessions.value;
-});
-
-const announcements = [
-  {
-    id: 1,
-    title: 'Unit 1 review session',
-    body: 'We will add an optional review session before the first quiz. Details will be shared soon.',
-    date: 'Today',
-  },
-  {
-    id: 2,
-    title: 'Materials updated',
-    body: 'New practice worksheets have been uploaded to the class materials.',
-    date: 'Yesterday',
-  },
-];
-
-const questions = [
-  {
-    id: 1,
-    author: 'You',
-    time: '2h ago',
-    text: 'Do we need to memorize all formulas for the quiz?',
-    answer: 'You should know the main algebra formulas; a small formula sheet will be provided.',
-  },
-  {
-    id: 2,
-    author: 'Student · Rawan',
-    time: 'Yesterday',
-    text: 'Will there be group work in this unit?',
-    answer: 'Yes, there will be one small group activity next week.',
-  },
-];
+const classInfo = ref(null);
+const sessions = ref([]);
+const announcements = ref([]);
+const questions = ref([]);
+const isLoading = ref(true);
+const errorMessage = ref('');
 
 const showAllSessions = ref(false);
 
-const visibleSessions = computed(() =>
-  showAllSessions.value ? semesterSessions.value : weeklySessions.value
-);
+const classTime = computed(() => {
+  if (!sessions.value.length) return '—';
+  const s = sessions.value[0];
+  if (!s.startsAt || !s.endsAt) return '—';
+  const start = new Date(s.startsAt);
+  const end = new Date(s.endsAt);
+  return `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+});
+
+const classLocation = computed(() => {
+  if (!sessions.value.length) return '—';
+  return sessions.value[0].location || '—';
+});
+
+const mappedSessions = computed(() => {
+  const now = new Date();
+  return sessions.value.map((s) => {
+    const date = s.startsAt ? new Date(s.startsAt) : null;
+    const isUpcoming = date ? date >= now : true;
+    return {
+      id: s.id,
+      rawDate: date,
+      day: date
+        ? date.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })
+        : '',
+      time: date
+        ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : '',
+      status: isUpcoming ? 'Upcoming' : 'Upcoming',
+      topic: s.title,
+    };
+  });
+});
+
+const visibleSessions = computed(() => {
+  if (showAllSessions.value) return mappedSessions.value;
+  const now = new Date();
+  return mappedSessions.value.filter((s) => !s.rawDate || s.rawDate >= now);
+});
+
+async function loadClassAndSessions () {
+  const idParam = route.params.id;
+  if (!idParam) {
+    errorMessage.value = 'Missing class id.';
+    isLoading.value = false;
+    return;
+  }
+
+  isLoading.value = true;
+  errorMessage.value = '';
+  try {
+    const [cls, sess, anns, qs] = await Promise.all([
+      fetchClassById(idParam),
+      fetchSessionsForClass(idParam),
+      fetchAnnouncementsForClass(idParam),
+      fetchQuestionsForClass(idParam),
+    ]);
+    classInfo.value = cls;
+    sessions.value = sess;
+    announcements.value = anns;
+    questions.value = qs;
+  } catch (err) {
+    errorMessage.value = err?.message || 'Could not load class details.';
+    classInfo.value = null;
+    sessions.value = [];
+    announcements.value = [];
+    questions.value = [];
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+onMounted(() => {
+  loadClassAndSessions();
+});
 
 function goToSession (session) {
   if (!session || !session.id || !classInfo.value?.id) {

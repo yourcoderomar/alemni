@@ -27,7 +27,7 @@
             'is-upcoming': session?.status === 'Upcoming'
           }"
         >
-          {{ session?.status }}
+          {{ session?.status || 'Upcoming' }}
         </span>
       </header>
 
@@ -157,61 +157,23 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import BackButton from 'src/components/BackButton.vue';
 import NotificationButton from 'src/components/NotificationButton.vue';
+import { fetchClassById, fetchSessionsForClass, fetchMaterialsForSession } from 'src/services/classes';
 
 const route = useRoute();
 
-const classId = computed(() => Number(route.params.id));
-const sessionId = computed(() => Number(route.params.sessionId));
+const classInfo = ref(null);
+const sessions = ref([]);
+const isLoading = ref(true);
+const errorMessage = ref('');
 
-const classes = [
-  { id: 1, name: 'Math', room: 'A1' },
-  { id: 2, name: 'Science', room: 'B3' },
-];
+const classId = computed(() => String(route.params.id || ''));
+const sessionId = computed(() => String(route.params.sessionId || ''));
 
-const allSessions = [
-  // Math weekly
-  { id: 1, classId: 1, day: 'Sun', time: '09:00 – 10:00', status: 'Present', topic: 'Algebra basics', room: 'A1' },
-  { id: 2, classId: 1, day: 'Tue', time: '09:00 – 10:00', status: 'Present', topic: 'Linear equations', room: 'A1' },
-  { id: 3, classId: 1, day: 'Thu', time: '09:00 – 10:00', status: 'Upcoming', topic: 'Quadratic functions', room: 'A1' },
-  // Math semester extras
-  { id: 4, classId: 1, day: 'Week 1 · Thu', time: '09:00 – 10:00', status: 'Absent', topic: 'Homework review', room: 'A1' },
-  { id: 5, classId: 1, day: 'Week 2 · Sun', time: '09:00 – 10:00', status: 'Present', topic: 'Graphs', room: 'A1' },
-  { id: 6, classId: 1, day: 'Week 2 · Thu', time: '09:00 – 10:00', status: 'Upcoming', topic: 'Mid‑unit review', room: 'A1' },
-
-  // Science weekly/semester
-  { id: 7, classId: 2, day: 'Mon', time: '11:30 – 12:30', status: 'Present', topic: 'Forces & motion', room: 'B3' },
-  { id: 8, classId: 2, day: 'Wed', time: '11:30 – 12:30', status: 'Absent', topic: 'Newton’s laws', room: 'B3' },
-  { id: 9, classId: 2, day: 'Week 2 · Mon', time: '11:30 – 12:30', status: 'Present', topic: 'Energy forms', room: 'B3' },
-  { id: 10, classId: 2, day: 'Week 2 · Wed', time: '11:30 – 12:30', status: 'Upcoming', topic: 'Lab prep', room: 'B3' },
-];
-
-const materials = [
-  {
-    id: 1,
-    title: 'Algebra basics – slides',
-    type: 'Slides',
-    topic: 'Week 1',
-    size: '4 MB',
-  },
-  {
-    id: 2,
-    title: 'Practice worksheet',
-    type: 'PDF',
-    topic: 'Homework',
-    size: '2 MB',
-  },
-  {
-    id: 3,
-    title: 'Intro video',
-    type: 'Video',
-    topic: 'Concept intro',
-    duration: '8 min',
-  },
-];
+const materials = ref([]);
 
 const assignments = [
   {
@@ -261,19 +223,74 @@ const quizzes = [
   },
 ];
 
+const rawSession = computed(() =>
+  sessions.value.find((s) => String(s.id) === sessionId.value)
+);
+
+const className = computed(() => classInfo.value?.title || 'Class');
+
 const session = computed(() => {
-  const id = sessionId.value;
-  const clsId = classId.value;
-  if (!Number.isFinite(id) || !Number.isFinite(clsId)) {
-    return null;
-  }
-  return allSessions.find((s) => s.id === id && s.classId === clsId) || null;
+  if (!rawSession.value) return null;
+
+  const s = rawSession.value;
+  const start = s.startsAt ? new Date(s.startsAt) : null;
+  const end = s.endsAt ? new Date(s.endsAt) : null;
+
+  return {
+    id: s.id,
+    day: start
+      ? start.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })
+      : 'Session',
+    time: start && end
+      ? `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+      : '—',
+    status: 'Upcoming',
+    topic: s.title,
+    room: s.location || '—',
+    notes: s.notes || ''
+  };
 });
 
-const className = computed(() => {
-  const clsId = classId.value;
-  const cls = classes.find((c) => c.id === clsId);
-  return cls ? cls.name : 'Class';
+async function loadSession () {
+  if (!classId.value || !sessionId.value) {
+    isLoading.value = false;
+    errorMessage.value = 'Missing class or session id.';
+    return;
+  }
+
+  isLoading.value = true;
+  errorMessage.value = '';
+  try {
+    const [cls, sessList, mats] = await Promise.all([
+      fetchClassById(classId.value),
+      fetchSessionsForClass(classId.value),
+      fetchMaterialsForSession(sessionId.value)
+    ]);
+    classInfo.value = cls;
+    sessions.value = sessList;
+    materials.value = mats.map((m) => {
+      const ext = m.mimeType?.split('/')[1] || m.storagePath.split('.').pop() || '';
+      const sizeKb = m.fileSize ? Math.round(m.fileSize / 1024) : 0;
+      return {
+        id: m.id,
+        title: m.title,
+        type: ext.toUpperCase(),
+        topic: m.description || 'Session material',
+        size: sizeKb ? `${sizeKb} KB` : ''
+      };
+    });
+  } catch (err) {
+    errorMessage.value = err?.message || 'Could not load session.';
+    classInfo.value = null;
+    sessions.value = [];
+    materials.value = [];
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+onMounted(() => {
+  loadSession();
 });
 </script>
 
@@ -321,9 +338,10 @@ const className = computed(() => {
 }
 
 .session-title {
-  margin: 0;
+  margin: 0 0 10px;
   font-family: $font-title;
   font-size: 5.4vw;
+  line-height: 1.1;
   letter-spacing: 0.06em;
   color: rgba(33, 26, 30, 0.96);
 }
